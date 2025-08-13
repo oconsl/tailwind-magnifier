@@ -161,131 +161,139 @@ class TailwindMagnifier extends HTMLElement {
 
     this.shadowRoot.appendChild(container)
 
-    this.toggle = this.shadowRoot.querySelector("input")
-    this.popup = this.shadowRoot.querySelector(".popup")
-    this.tab = this.shadowRoot.querySelector(".tab")
+    /* ---------- referencias a los elementos internos ---------- */
+    this.toggle = this.shadowRoot.querySelector("input");
+    this.popup  = this.shadowRoot.querySelector(".popup");
+    this.tab    = this.shadowRoot.querySelector(".tab");
 
     /* ----------   EVENTOS  ---------- */
 
-    // 1️⃣ Cambiar tracking y popup visible
-    this.toggle.addEventListener("change", () => {
+    /* ---------- evento del checkbox ---------- */
+    this.toggle.addEventListener("click", () => {
       this.tracking = this.toggle.checked;
-      if (this.tracking) {
-        this.popup.style.display = "block";
-        // Forzar re‑layout para que offsetHeight/Width sean correctos
-        requestAnimationFrame(() => this.updatePopupPosition(this.lastEl));
-      } else {
-        this.popup.style.display = "none";
-        if (this.lastEl) {
-          this.lastEl.style.outline = "";
-          this.lastEl.style.boxShadow = "";
-          this.lastEl = null;
-        }
+      this.popup.style.display = this.tracking ? "block" : "none";
+      if (!this.tracking && this.lastEl) {
+        this.lastEl.style.outline = "";
+        this.lastEl.style.boxShadow = "";
+        this.lastEl = null;
       }
     });
 
-    // 2️⃣ Copiar al hacer click sobre el popup
-    this.popup.addEventListener(
-      "click",
-      (e) => {
-        e.preventDefault();
-        e.stopPropagation();           // evita que la página reciba el click
-        const textToCopy = this.popup.innerText.trim();
+    /* ---------- evento de click en el popup (copiar) ---------- */
+    document.addEventListener("click", (e) => {
+      if (this.shadowRoot.contains(e.target)) return;
 
-        if (!textToCopy || textToCopy === "(sin clases equivalentes)") return;
+      // 1. Evitamos que el click se propague a la página
+      e.preventDefault();
+      e.stopPropagation();
 
-        navigator.clipboard.writeText(textToCopy).then(
-          () => {
-            /* feedback visual */
-            const originalBg = this.popup.style.background;
-            this.popup.style.background =
-              "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)";
-            this.popup.style.color = "#166534";
+      const textToCopy = this.popup.innerText;
+      if (!textToCopy || textToCopy === "(sin clases equivalentes)") return;
 
-            setTimeout(() => {
-              this.popup.style.background = originalBg;
-              this.popup.style.color = "";
-            }, 500);
-          },
-          () => {
-            /* error */
-            const originalBg = this.popup.style.background;
-            this.popup.style.background =
-              "linear-gradient(135deg, #fef2f2 0%, #fecaca 100%)";
-            this.popup.style.color = "#dc2626";
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        // Feedback visual breve
+        const originalBg = this.popup.style.background;
+        this.popup.style.background =
+          "linear-gradient(135deg,#dcfce7 0%,#bbf7d0 100%)";
+        this.popup.style.color = "#166534";
 
-            setTimeout(() => {
-              this.popup.style.background = originalBg;
-              this.popup.style.color = "";
-            }, 500);
-          }
-        );
-      },
-      { capture: true } // captura en fase de captura
-    );
+        setTimeout(() => {
+          this.popup.style.background = originalBg;
+          this.popup.style.color = "";
+        }, 500);
+      }).catch(() => {
+        const originalBg = this.popup.style.background;
+        this.popup.style.background =
+          "linear-gradient(135deg,#fef2f2 0%,#fecaca 100%)";
+        this.popup.style.color = "#dc2626";
 
-    /* ----------   MOVIMIENTO del mouse  ---------- */
+        setTimeout(() => {
+          this.popup.style.background = originalBg;
+          this.popup.style.color = "";
+        }, 500);
+      });
+    });
 
+    /* ---------- evento de mousemove (tracking) ---------- */
     document.addEventListener("mousemove", (e) => {
       if (!this.tracking) return;
 
       const el = document.elementFromPoint(e.clientX, e.clientY);
 
-      // Evitar que el tracking afecte al propio componente
+      // Evitar que el propio componente sea el objetivo del tracking
       if (!el || this.shadowRoot.contains(el)) return;
 
       if (el !== this.lastEl) {
+        /* 1. Limpiar el último elemento */
         if (this.lastEl) {
           this.lastEl.style.outline = "";
           this.lastEl.style.boxShadow = "";
         }
+
+        /* 2. Guardar el nuevo */
         this.lastEl = el;
         el.style.boxShadow =
-          "0 0 0 2px rgba(236, 72, 153, 0.6), 0 8px 32px rgba(236, 72, 153, 0.15)";
+          "0 0 0 2px rgba(236,72,153,.6), 0 8px 32px rgba(236,72,153,.15)";
         el.style.outline = "none";
 
+        /* 3. Obtener las clases */
         const styles = getComputedStyle(el);
-        this.popup.innerText =
-          this.mapToTailwind(styles, el) || "(sin clases equivalentes)";
+        const twClasses = this.mapToTailwind(styles, el);
+        this.popup.innerText = twClasses || "(sin clases equivalentes)";
       }
 
-      /* --------- Posicionamiento ---------- */
-      // Se actualiza cada movimiento para que siempre esté a la vista
-      this.updatePopupPosition(el);
+      /* ---------- Posicionar popup ----------
+         * Se hace en requestAnimationFrame para que la medida sea correcta
+         * después de haber actualizado `innerText`. */
+      requestAnimationFrame(() => {
+        const viewportWidth  = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        // Ancho/alto del popup (ya con su contenido)
+        const popW = this.popup.offsetWidth;
+        const popH = this.popup.offsetHeight;
+
+        /* 1. Posición horizontal */
+        let left = e.clientX + 8;          // por defecto a la derecha
+        if (e.clientX + 8 + popW > viewportWidth) {
+          left = e.clientX - popW - 8;     // si no cabe, a la izquierda
+        }
+        this.popup.style.left = `${left}px`;
+
+        /* 2. Posición vertical */
+        let top = e.clientY + 8;           // por defecto debajo
+        if (e.clientY + 8 + popH > viewportHeight) {
+          top = e.clientY - popH - 8;      // si no cabe, encima
+        }
+        this.popup.style.top = `${top}px`;
+      });
     });
+
+    /* ---------- Bloquear clicks que salgan del componente ----------
+       * Se añade un "overlay" transparente en el documento.
+       * Cuando el modo está activo, cualquier click fuera del popup
+       * se detiene y no llega al resto de la página. */
+    this.overlay = document.createElement("div");
+    this.overlay.style.position = "fixed";
+    this.overlay.style.top = "0";
+    this.overlay.style.left = "0";
+    this.overlay.style.width = "100vw";
+    this.overlay.style.height = "100vh";
+    this.overlay.style.zIndex = "999998"; // justo debajo del popup
+    this.overlay.style.pointerEvents = "none"; // por defecto no intercepta
+
+    document.body.appendChild(this.overlay);
+
+    /* Cuando activamos el modo, habilitamos la capa de bloqueo */
+    this.toggle.addEventListener("change", () => {
+      this.overlay.style.pointerEvents = this.tracking ? "auto" : "none";
+    });
+
+    /* Si haces click dentro del popup, lo bloquea también
+       (evita que se disparen eventos de click en el resto). */
+    this.popup.addEventListener("click", (e) => e.stopPropagation());
   }
 
-  /* ----------   MÉTODO DE POSICIONAMIENTO  ---------- */
-
-  updatePopupPosition(el) {
-    if (!el || !this.popup.isConnected) return;
-
-    const popupRect = this.popup.getBoundingClientRect();
-    const margin = 8; // margen entre mouse y popup
-
-    let left, top;
-
-    /* --- Posición horizontal --- */
-    if (window.innerWidth - el.clientX < popupRect.width + margin * 2) {
-      left = el.clientX - popupRect.width - margin;
-    } else {
-      left = el.clientX + margin;
-    }
-
-    /* --- Posición vertical --- */
-    if (window.innerHeight - el.clientY < popupRect.height + margin * 2) {
-      top = el.clientY - popupRect.height - margin;
-    } else {
-      top = el.clientY + margin;
-    }
-
-    // Asegurarse de que no se salga del viewport
-    left = Math.max(margin, Math.min(left, window.innerWidth - popupRect.width - margin));
-    top = Math.max(margin, Math.min(top, window.innerHeight - popupRect.height - margin));
-
-    this.popup.style.left = `${left}px`;
-    this.popup.style.top = `${top}px`;
-  }
 
   // Función helper para convertir RGB a hex
   rgbToHex(rgb) {
