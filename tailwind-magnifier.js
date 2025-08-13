@@ -134,12 +134,8 @@ class TailwindMagnifier extends HTMLElement {
           background: rgba(255, 255, 255, 0.9);
           padding: 2px 8px;
           border-radius: 6px;
-          opacity: 0;
-          transition: opacity 0.2s ease;
+          opacity: 1; /* siempre visible */
           pointer-events: none;
-        }
-        .popup:hover::after {
-          opacity: 1;
         }
 
         /* Animación suave para el outline del elemento seleccionado */
@@ -183,7 +179,6 @@ class TailwindMagnifier extends HTMLElement {
     document.addEventListener("click", (e) => {
       if (this.shadowRoot.contains(e.target)) return;
 
-      // 1. Evitamos que el click se propague a la página
       e.preventDefault();
       e.stopPropagation();
 
@@ -191,12 +186,10 @@ class TailwindMagnifier extends HTMLElement {
       if (!textToCopy || textToCopy === "(sin clases equivalentes)") return;
 
       navigator.clipboard.writeText(textToCopy).then(() => {
-        // Feedback visual breve
         const originalBg = this.popup.style.background;
         this.popup.style.background =
           "linear-gradient(135deg,#dcfce7 0%,#bbf7d0 100%)";
         this.popup.style.color = "#166534";
-
         setTimeout(() => {
           this.popup.style.background = originalBg;
           this.popup.style.color = "";
@@ -206,7 +199,6 @@ class TailwindMagnifier extends HTMLElement {
         this.popup.style.background =
           "linear-gradient(135deg,#fef2f2 0%,#fecaca 100%)";
         this.popup.style.color = "#dc2626";
-
         setTimeout(() => {
           this.popup.style.background = originalBg;
           this.popup.style.color = "";
