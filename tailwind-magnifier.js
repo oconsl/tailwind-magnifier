@@ -175,45 +175,25 @@ class TailwindMagnifier extends HTMLElement {
       }
     });
 
-    /* ---------- evento de click en el popup (copiar) ---------- */
-    document.addEventListener("click", (e) => {
-      if (this.shadowRoot.contains(e.target)) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      const textToCopy = this.popup.innerText;
-      if (!textToCopy || textToCopy === "(sin clases equivalentes)") return;
-
-      navigator.clipboard.writeText(textToCopy).then(() => {
-        const originalBg = this.popup.style.background;
-        this.popup.style.background =
-          "linear-gradient(135deg,#dcfce7 0%,#bbf7d0 100%)";
-        this.popup.style.color = "#166534";
-        setTimeout(() => {
-          this.popup.style.background = originalBg;
-          this.popup.style.color = "";
-        }, 500);
-      }).catch(() => {
-        const originalBg = this.popup.style.background;
-        this.popup.style.background =
-          "linear-gradient(135deg,#fef2f2 0%,#fecaca 100%)";
-        this.popup.style.color = "#dc2626";
-        setTimeout(() => {
-          this.popup.style.background = originalBg;
-          this.popup.style.color = "";
-        }, 500);
-      });
+    this.toggle.addEventListener("change", () => {
+      if (this.tracking) {
+        this.overlay.style.pointerEvents = "auto";
+      } else {
+        this.overlay.style.pointerEvents = "none";
+      }
     });
 
     /* ---------- evento de mousemove (tracking) ---------- */
     document.addEventListener("mousemove", (e) => {
       if (!this.tracking) return;
 
-      const el = document.elementFromPoint(e.clientX, e.clientY);
+      let el = document.elementFromPoint(e.clientX, e.clientY);
 
-      // Evitar que el propio componente sea el objetivo del tracking
-      if (!el || this.shadowRoot.contains(el)) return;
+      if (el === this.overlay) {
+        this.overlay.style.pointerEvents = "none";
+        el = document.elementFromPoint(e.clientX, e.clientY);
+        this.overlay.style.pointerEvents = "auto";
+      }
 
       if (el !== this.lastEl) {
         /* 1. Limpiar el último elemento */
@@ -271,19 +251,59 @@ class TailwindMagnifier extends HTMLElement {
     this.overlay.style.left = "0";
     this.overlay.style.width = "100vw";
     this.overlay.style.height = "100vh";
-    this.overlay.style.zIndex = "999998"; // justo debajo del popup
-    this.overlay.style.pointerEvents = "none"; // por defecto no intercepta
+    this.overlay.style.zIndex = "999998";
+    this.overlay.style.background = "transparent";
+    this.overlay.style.pointerEvents = "none";
+    this.overlay.style.cursor = "pointer";
 
     document.body.appendChild(this.overlay);
+
+    /* ---------- evento de click en el popup (copiar) ---------- */
+    this.overlay.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Convertir el texto del popup (que tiene saltos de línea) a espacios
+      const displayText = this.popup.innerText;
+      const textToCopy = displayText.replace(/\n/g, ' ').trim();
+      
+      if (!textToCopy || textToCopy === "(sin clases equivalentes)") return;
+
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        const originalBg = this.popup.style.background;
+        this.popup.style.background =
+          "linear-gradient(135deg,#dcfce7 0%,#bbf7d0 100%)";
+        this.popup.style.color = "#166534";
+        setTimeout(() => {
+          this.popup.style.background = originalBg;
+          this.popup.style.color = "";
+        }, 500);
+      }).catch(() => {
+        const originalBg = this.popup.style.background;
+        this.popup.style.background =
+          "linear-gradient(135deg,#fef2f2 0%,#fecaca 100%)";
+        this.popup.style.color = "#dc2626";
+        setTimeout(() => {
+          this.popup.style.background = originalBg;
+          this.popup.style.color = "";
+        }, 500);
+      });
+    });
+
+    this.overlay.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    this.overlay.addEventListener("mouseup", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
 
     /* Cuando activamos el modo, habilitamos la capa de bloqueo */
     this.toggle.addEventListener("change", () => {
       this.overlay.style.pointerEvents = this.tracking ? "auto" : "none";
     });
-
-    /* Si haces click dentro del popup, lo bloquea también
-       (evita que se disparen eventos de click en el resto). */
-    this.popup.addEventListener("click", (e) => e.stopPropagation());
   }
 
 
